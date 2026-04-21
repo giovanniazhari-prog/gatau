@@ -1,7 +1,26 @@
 import requests
-import random
-import string
-import time
+  from requests.adapters import HTTPAdapter
+  from urllib3.util.retry import Retry
+  import random
+  import string
+  import time
+
+  # HTTP session with retry/backoff for resilient connections
+  def make_session():
+      s = requests.Session()
+      retry = Retry(
+          total=4,
+          backoff_factor=2,        # 2s, 4s, 8s, 16s
+          status_forcelist=[408, 429, 500, 502, 503, 504],
+          allowed_methods=["POST"],
+          raise_on_status=False,
+      )
+      adapter = HTTPAdapter(max_retries=retry, pool_connections=10, pool_maxsize=10)
+      s.mount("https://", adapter)
+      s.mount("http://", adapter)
+      return s
+
+  SESSION = make_session()
 
 # ══════════════════════════════════════════
 #  CONFIG — edit sesuai kebutuhan lo
@@ -49,7 +68,7 @@ def register(email, username, password):
     }
 
     try:
-        res = requests.post(SUPABASE_URL, json=payload, headers=HEADERS, timeout=15)
+        res = SESSION.post(SUPABASE_URL, json=payload, headers=HEADERS, timeout=(10, 60))
         if res.status_code == 200:
             data = res.json()
             user_id = data.get("user", {}).get("id", "-")
